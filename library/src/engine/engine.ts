@@ -579,14 +579,21 @@ const isValidLink = (checkLink: Link, sub: ReactiveNode): boolean => {
   return false
 }
 
+const indexRegexp = /(.*)\[(\d+)\]$/;
 const getPath = <T = any>(path: string): T | undefined => {
   let result = root
   const split = path.split('.')
   for (const path of split) {
-    if (result == null || !Object.hasOwn(result, path)) {
+    if (indexRegexp.test(path)) {
+      // TODO use indexRegexp.exec(path)
+      const key = path.replace(indexRegexp, '$1')
+      const index = path.replace(indexRegexp, '$2')
+      result = result[key][parseInt(index, 10)]
+      continue
+    } else if (result == null || !Object.hasOwn(result, path)) {
       return
     }
-    result = result[path]
+    result = result[path] as any
   }
   return result as T
 }
@@ -780,9 +787,17 @@ function filtered(
     const [node, prefix] = stack.pop()!
 
     for (const key in node) {
-      const path = prefix + key
+      let path;
+      if (Array.isArray(node)) {
+        path = `${prefix}${key}]`
+      } else {
+        path = `${prefix}${key}`
+      }
+
       if (isPojo(node[key])) {
         stack.push([node[key], `${path}.`])
+      } else if (Array.isArray(node[key])) {
+        stack.push([node[key], `${path}[`])
       } else if (
         toRegExp(include).test(path) &&
         !toRegExp(exclude).test(path)

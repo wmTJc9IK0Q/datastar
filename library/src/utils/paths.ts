@@ -34,8 +34,36 @@ export const pathToObj = (paths: Paths): Record<string, any> => {
   for (const [path, value] of paths) {
     const keys = path.split('.')
     const lastKey = keys.pop()!
-    const obj = keys.reduce((acc, key) => (acc[key] ??= {}), result)
-    obj[lastKey] = value
+    const obj: any = keys.reduce((acc, key) => (getKey(acc, key) ? getKey(acc, key) : setKey(acc, key, {})), result)
+    setKey(obj, lastKey, value)
   }
   return result
+}
+
+const getKey = (obj: any, key: string): any => {
+  let res = indexRegexp.exec(key)
+  if (res) {
+    key = res[1]
+    let index = parseInt(res[2], 10)
+    if (!obj[key]) return undefined
+    return obj[key][index]
+  } else {
+    return obj[key]
+  }
+}
+
+const indexRegexp = /(.*)\[(\d+)\]$/;
+const setKey = (obj: any,  key: string, value: any): Record<string, any> => {
+  let res = indexRegexp.exec(key)
+  if (res) {
+    key = res[1]
+    let index = parseInt(res[2], 10)
+    let arr = []
+    arr[index] = value
+    obj[key] = arr
+    return arr
+  } else {
+    obj[key] = value
+    return obj
+  }
 }
