@@ -280,17 +280,21 @@ const applyAttributePlugin = (
 
       const cleanup = plugin.apply(ctx)
       if (cleanup) {
-        let cleanups = removals.get(el)
-        if (cleanups) {
-          cleanups.get(rawKey)?.()
-        } else {
-          cleanups = new Map()
-          removals.set(el, cleanups)
-        }
-        cleanups.set(rawKey, cleanup)
+        setCleanup(el, rawKey, cleanup)
       }
     }
   }
+}
+
+export const setCleanup = (el: HTMLOrSVG, key: string, cleanup: () => void): void => {
+  let cleanups = removals.get(el)
+  if (cleanups) {
+    cleanups.get(key)?.()
+  } else {
+    cleanups = new Map()
+    removals.set(el, cleanups)
+  }
+  cleanups.set(key, cleanup)
 }
 
 type GenRxOptions = {

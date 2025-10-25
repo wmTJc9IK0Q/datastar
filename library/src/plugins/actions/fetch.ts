@@ -2,7 +2,7 @@
 // Slug: Access signals without subscribing to changes.
 // Description: Allows accessing signals without subscribing to their changes in expressions.
 
-import { action } from '@engine'
+import { action, setCleanup } from '@engine'
 import { DATASTAR_FETCH_EVENT } from '@engine/consts'
 import { filtered } from '@engine/signals'
 import type {
@@ -52,23 +52,10 @@ const createHttpMethod = (name: string, method: string): void =>
       }
 
       try {
-        const observer = new MutationObserver((mutations) => {
-          for (const mutation of mutations) {
-            for (const removed of mutation.removedNodes) {
-              if (removed === el) {
-                controller.abort()
-                cleanupFn()
-              }
-            }
-          }
-        })
-        if (el.parentNode) {
-          observer.observe(el.parentNode, { childList: true })
-        }
-
         let cleanupFn = () => {
-          observer.disconnect()
+          controller.abort()
         }
+        setCleanup(el, `fetch`, () => { cleanupFn() })
 
         try {
           if (!url?.length) {
@@ -152,7 +139,6 @@ const createHttpMethod = (name: string, method: string): void =>
             // Validate the form
             if (!formEl.checkValidity()) {
               formEl.reportValidity()
-              cleanupFn()
               return
             }
 
@@ -170,7 +156,6 @@ const createHttpMethod = (name: string, method: string): void =>
               formEl.addEventListener('submit', preventDefault)
               cleanupFn = () => {
                 formEl.removeEventListener('submit', preventDefault)
-                observer.disconnect()
               }
             }
 
