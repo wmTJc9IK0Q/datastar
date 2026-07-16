@@ -7,6 +7,13 @@ const oldIdTagNameMap = new Map<string, string>()
 const duplicateIds = new Set<string>()
 const ctxPantry = document.createElement('div')
 ctxPantry.hidden = true
+// The pantry is briefly attached to the document during each morph (moveBefore
+// requires both parents connected). Datastar must never (re)apply plugins to
+// nodes parked inside it: without this, every morph re-applied the plugins of
+// stale pantry leftovers (re-firing data-init fetches and effects) while their
+// elements were no longer in the document. Cleanup hooks still run for
+// pantried nodes via their removal records — cleanup does not check ignore.
+ctxPantry.setAttribute(aliasify('ignore'), '')
 
 const aliasedIgnoreMorph = aliasify('ignore-morph')
 const aliasedIgnoreMorphAttr = `[${aliasedIgnoreMorph}]`
@@ -27,6 +34,10 @@ export const morph = (
 
   const normalizedElt = document.createElement('div')
   normalizedElt.append(newContent)
+  // Anything still in the pantry was parked by an earlier morph and never
+  // reused; drop it instead of re-inserting it into the document. Its cleanup
+  // hooks already ran via the removal records of that earlier morph.
+  ctxPantry.replaceChildren()
   document.body.insertAdjacentElement('afterend', ctxPantry)
 
   // Computes the set of IDs that persist between the two contents excluding duplicates
@@ -127,15 +138,22 @@ const morphChildren = (
       // Search for an element by ID within the document and pantry, and move it using moveBefore.
       const movedChild = document.getElementById(newChild.id) as Element
 
-      // Removes an element from its ancestors' ID maps.
+      // Removes an element and all IDs contained within it from its
+      // ancestors' ID maps.
       // This is needed when an element is moved from the "future" via `moveBeforeId`.
       // Otherwise, its erstwhile ancestors could be mistakenly moved to the pantry rather than being deleted,
       // preventing their removal hooks from being called.
+      // The moved element's own ID set covers its whole subtree: deleting only
+      // newChild.id would leave descendants' IDs behind, still mis-routing the
+      // ancestors to the pantry.
+      const movedIds = ctxIdMap.get(movedChild) ?? new Set([newChild.id])
       let current = movedChild
       while ((current = current.parentNode as Element)) {
         const idSet = ctxIdMap.get(current)
         if (idSet) {
-          idSet.delete(newChild.id)
+          for (const id of movedIds) {
+            idSet.delete(id)
+          }
           if (!idSet.size) {
             ctxIdMap.delete(current)
           }
